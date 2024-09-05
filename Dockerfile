@@ -5,6 +5,8 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
+FROM node:20-slim
+
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 EXPOSE 80

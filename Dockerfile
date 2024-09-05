@@ -7,7 +7,7 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM nginx:debian
+FROM nginx:1.27.1-bookworm
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Install AWS CLI and other necessary tools

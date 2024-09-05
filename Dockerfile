@@ -13,7 +13,8 @@ EXPOSE 80
 RUN apk add --no-cache \
     python3 \
     py3-pip \
-    gettext
+    gettext \
+    aws-cli
 
 RUN pip3 install --no-cache-dir awscli
 

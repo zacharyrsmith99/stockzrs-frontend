@@ -5,21 +5,15 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM node:20-slim
-
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 EXPOSE 80
 
 # Install AWS CLI and other necessary tools
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
     python3 \
-    python3-venv \
-    python3-pip \
-    gettext-base
-
-RUN python3 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+    py3-pip \
+    gettext
 
 RUN pip3 install --no-cache-dir awscli
 

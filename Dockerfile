@@ -1,4 +1,4 @@
-FROM node:18-alpine as build
+FROM node:20 AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -10,10 +10,14 @@ COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
 
 # Install AWS CLI and other necessary tools
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y \
     python3 \
-    py3-pip \
-    gettext
+    python3-venv \
+    python3-pip \
+    gettext-base
+
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
 RUN pip3 install --no-cache-dir awscli
 

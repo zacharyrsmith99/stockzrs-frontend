@@ -16,6 +16,9 @@ spec:
     spec:
       containers:
       - name: stockzrs-frontend
+        env:
+        - name: STOCKZRS_RELAY_SERVICE_WS_URL
+          value: "wss://stockzrs-relay-service.stockzrs.com"
         image: PLACEHOLDER_IMAGE
         imagePullPolicy: Always
         ports:

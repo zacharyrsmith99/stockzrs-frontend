@@ -1,14 +1,23 @@
 FROM node:18-alpine as build
-
 WORKDIR /app
-
 COPY package*.json ./
 RUN npm ci
 COPY . .
 RUN npm run build
+
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-# COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+# Install AWS CLI and other necessary tools
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    gettext
+
+RUN pip3 install --no-cache-dir awscli
+
+COPY start.sh .
+RUN chmod +x start.sh
+
+CMD ["./start.sh"]

@@ -29,8 +29,7 @@ const TopInstruments: React.FC = () => {
   const initialPricesRef = useRef<{ [key: string]: number }>({});
 
   const connectWebSocket = useCallback(() => {
-    const wsUrl = process.env.STOCKZRS_RELAY_SERVICE_WS_URL!;
-    console.log(wsUrl);
+    const wsUrl = "wss://stockzrs-relay-service.stockzrs.com";
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {

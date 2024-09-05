@@ -1,0 +1,84 @@
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, sans-serif;
+  background-color: #f0f4f8;
+  display: block !important
+}
+
+.App {
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.content-wrapper {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+
+.app-header {
+  background-color: #3B82F6;
+  color: white;
+  padding: 20px 0;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.app-header .content-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 2.5rem;
+  font-weight: bold;
+}
+
+.app-header nav a {
+  color: white;
+  text-decoration: none;
+  margin-left: 20px;
+}
+
+.app-main {
+  flex: 1;
+  padding: 20px 0;
+}
+
+.dashboard, .about {
+  width: 100%;
+}
+
+.chart-container {
+  background-color: #ffffff;
+  border-radius: 10px;
+  padding: 20px;
+  margin-top: 30px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.chart-container h2 {
+  color: #2c3e50;
+  margin-bottom: 20px;
+}
+
+.app-footer {
+  background-color: #2c3e50;
+  color: white;
+  padding: 20px 0;
+  text-align: center;
+}
+
+/* Ensure consistent width for both Dashboard and About pages */
+.content-wrapper > div {
+  width: 100%;
+}
+
+/* Override any max-width settings in child components */
+.content-wrapper * {
+  max-width: none;
+}

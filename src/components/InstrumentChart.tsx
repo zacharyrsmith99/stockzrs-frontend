@@ -24,7 +24,7 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType }) 
         if (!metricsServiceUrl) {
           throw new Error('Metrics service URL is not configured');
         }
-        const response = await fetch(`http://${metricsServiceUrl}/chart/last_24_hours?symbol=${symbol}&asset_type=${assetType}`);
+        const response = await fetch(`https://${metricsServiceUrl}/chart/last_24_hours?symbol=${symbol}&asset_type=${assetType}`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }

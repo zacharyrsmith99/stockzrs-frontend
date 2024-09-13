@@ -37,7 +37,7 @@ const TopInstruments: React.FC = () => {
     }
 
     const fetchPromises = initialInstruments.map(async (instrument) => {
-      const url = new URL(`http://${metricsServiceUrl}/carousel/${endpoint}`);
+      const url = new URL(`https://${metricsServiceUrl}/carousel/${endpoint}`);
       url.searchParams.append('symbol', instrument.symbol);
       url.searchParams.append('asset_type', instrument.type);
 

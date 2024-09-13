@@ -2,18 +2,20 @@ body {
   margin: 0;
   padding: 0;
   font-family: Arial, sans-serif;
-  background-color: #f0f4f8;
-  display: block !important
+  background: linear-gradient(to bottom right, #e0f2fe, #e0e7ff);
+  display: block !important;
+  min-height: 100vh;
 }
 
 .App {
+  display: flex;
   flex-direction: column;
   min-height: 100vh;
 }
 
 .content-wrapper {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1800px;
   margin: 0 auto;
   padding: 0 20px;
   box-sizing: border-box;
@@ -42,11 +44,16 @@ body {
   color: white;
   text-decoration: none;
   margin-left: 20px;
+  transition: color 0.3s ease;
+}
+
+.app-header nav a:hover {
+  color: #bfdbfe;
 }
 
 .app-main {
   flex: 1;
-  padding: 20px 0;
+  padding: 40px 0;
 }
 
 .dashboard, .about {

@@ -1,10 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import dotenv from 'dotenv'
+import path from 'path'
 
-dotenv.config()
-
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -15,7 +12,9 @@ export default defineConfig({
       }
     }
   },
-  define: {
-    'process.env.STOCKZRS_RELAY_SERVICE_WS_URL': JSON.stringify(process.env.STOCKZRS_RELAY_SERVICE_WS_URL)
-  }
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
 })

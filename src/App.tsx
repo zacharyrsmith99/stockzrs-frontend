@@ -1,7 +1,7 @@
-import { BrowserRouter as Router, Route, Routes, Link } from 'react-router-dom'
-import './App.css'
-import TopInstruments from './components/TopInstruments'
-import About from './About'
+import { BrowserRouter as Router, Route, Routes, Link } from 'react-router-dom';
+import './styles/App.css';
+import TopInstruments from './components/TopInstruments';
+import About from './pages/About';
 
 function App() {
   return (
@@ -30,12 +30,21 @@ function App() {
         </main>
         <footer className="app-footer">
           <div className="content-wrapper">
-            <p>&copy; 2024 stockzrs portfolio project</p>
+            <div className="footer-content">
+              <div className="footer-left">
+                <p>2024 stockzrs - A portfolio project demonstrating real-time financial data processing.</p>
+              </div>
+              <div className="footer-right">
+                <a href="mailto:zachary.r.smith99@gmail.com">Email</a>
+                <a href="https://www.linkedin.com/in/zachary-smith-4581141b2/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                <a href="https://github.com/zacharyrsmith99" target="_blank" rel="noopener noreferrer">GitHub</a>
+              </div>
+            </div>
           </div>
         </footer>
       </div>
     </Router>
-  )
+  );
 }
 
-export default App
+export default App;

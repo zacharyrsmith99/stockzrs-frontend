@@ -30,8 +30,7 @@ const TopInstruments: React.FC = () => {
   const [selectedInstrument, setSelectedInstrument] = useState<ExtendedInstrument | null>(null);
 
   const fetchPriceData = useCallback(async (endpoint: string) => {
-    // const metricsServiceUrl = import.meta.env.VITE_METRICS_SERVICE_URL;
-    const metricsServiceUrl = "stockzrs-metrics-service.stockzrs.com"
+    const metricsServiceUrl = import.meta.env.VITE_METRICS_SERVICE_URL || "stockzrs-metrics-service.stockzrs.com";
     if (!metricsServiceUrl) {
       throw new Error('Unable to retrieve market data. Please try again later.');
     }

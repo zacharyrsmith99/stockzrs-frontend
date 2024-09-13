@@ -19,8 +19,7 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType }) 
       setIsLoading(true);
       setError(null);
       try {
-        // const metricsServiceUrl = import.meta.env.VITE_METRICS_SERVICE_URL;
-        const metricsServiceUrl = "stockzrs-metrics-service.stockzrs.com"
+        const metricsServiceUrl = import.meta.env.VITE_METRICS_SERVICE_URL || "stockzrs-metrics-service.stockzrs.com";
         if (!metricsServiceUrl) {
           throw new Error('Metrics service URL is not configured');
         }

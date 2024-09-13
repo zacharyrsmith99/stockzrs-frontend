@@ -73,11 +73,51 @@ body {
   margin-bottom: 20px;
 }
 
+
 .app-footer {
   background-color: #2c3e50;
-  color: white;
-  padding: 20px 0;
-  text-align: center;
+  color: #ecf0f1;
+  padding: 1rem 0;
+  font-size: 0.9rem;
+}
+
+.footer-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.footer-left {
+  flex: 1;
+  margin-right: 1rem;
+}
+
+.footer-right {
+  display: flex;
+  gap: 1rem;
+}
+
+.footer-right a {
+  color: #3498db;
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.footer-right a:hover {
+  color: #2980b9;
+}
+
+@media (max-width: 768px) {
+  .footer-content {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .footer-left {
+    margin-right: 0;
+    margin-bottom: 1rem;
+  }
 }
 
 /* Ensure consistent width for both Dashboard and About pages */

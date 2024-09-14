@@ -12,6 +12,7 @@ export interface FinancialData {
 export interface Instrument extends FinancialData {
   change: number;
   changePercent: number;
+  error?: string;
 }
 
 export interface MetricsData {

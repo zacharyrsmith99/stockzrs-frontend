@@ -7,6 +7,7 @@ import { DateTime } from 'luxon';
 interface InstrumentChartProps {
   symbol: string;
   assetType: string;
+  onError: (error: string) => void;
 }
 
 const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType }) => {

@@ -6,17 +6,23 @@ import InstrumentChart from './InstrumentChart';
 
 interface PriceData {
   symbol: string;
-  close_price: number;
-  open_price: number;
-  low_price: number;
-  high_price: number;
   timestamp: string;
+  open_price: number;
+  high_price: number;
+  low_price: number;
+  close_price: number;
+}
+
+interface InstrumentCardPrice {
+  current: PriceData;
+  previous: PriceData;
 }
 
 interface ExtendedInstrument extends Instrument {
   comparisonPrice: number;
   comparisonTimestamp: number;
   recentTimestamp: number;
+  error?: string;
 }
 
 const TopInstruments: React.FC = () => {
@@ -24,79 +30,69 @@ const TopInstruments: React.FC = () => {
     initialInstruments.map(inst => ({ ...inst, comparisonPrice: 0, comparisonTimestamp: 0, recentTimestamp: 0 }))
   );
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [chartError, setChartError] = useState<string | null>(null);
   const [wsError, setWsError] = useState<string | null>(null);
   const comparisonPricesRef = useRef<{ [key: string]: number }>({});
   const [selectedInstrument, setSelectedInstrument] = useState<ExtendedInstrument | null>(null);
 
-  const fetchPriceData = useCallback(async (endpoint: string) => {
+  const fetchPriceData = useCallback(async (instrument: Instrument) => {
     const metricsServiceUrl = import.meta.env.VITE_METRICS_SERVICE_URL || "stockzrs-metrics-service.stockzrs.com";
     if (!metricsServiceUrl) {
       throw new Error('Unable to retrieve market data. Please try again later.');
     }
+    const http = import.meta.env.VITE_ENVIRONMENT === 'local' ? 'http' : 'https'
 
-    const fetchPromises = initialInstruments.map(async (instrument) => {
-      const url = new URL(`https://${metricsServiceUrl}/carousel/${endpoint}`);
-      url.searchParams.append('symbol', instrument.symbol);
-      url.searchParams.append('asset_type', instrument.type);
+    const url = new URL(`${http}://${metricsServiceUrl}/carousel/instrument_card_comparison`);
+    url.searchParams.append('symbol', instrument.symbol);
+    url.searchParams.append('asset_type', instrument.type);
 
-      const response = await fetch(url.toString());
-      if (!response.ok) {
-        throw new Error('Failed to fetch market data. Please try again later.');
-      }
-      const data: PriceData = await response.json();
-      return {
-        symbol: data.symbol,
-        price: data.close_price,
-        timestamp: new Date(data.timestamp).getTime() / 1000,
-      };
-    });
-
-    return Promise.all(fetchPromises);
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error('Failed to fetch market data.');
+    }
+    return await response.json() as InstrumentCardPrice;
   }, []);
 
   const initializeData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const [comparisonPrices, recentPrices] = await Promise.all([
-        fetchPriceData('comparison_price'),
-        fetchPriceData('most_recent_price')
-      ]);
+    setIsLoading(true);
+    const updatedInstruments = await Promise.all(initialInstruments.map(async (instrument) => {
+      try {
+        const priceData = await fetchPriceData(instrument);
+        const { current, previous } = priceData;
+        const change = current.close_price - previous.close_price;
+        const changePercent = (change / previous.close_price) * 100;
 
-      const updatedInstruments = initialInstruments.map(instrument => {
-        const comparisonPrice = comparisonPrices.find(p => p.symbol === instrument.symbol)?.price || 0;
-        const recentPrice = recentPrices.find(p => p.symbol === instrument.symbol);
-        
-        if (recentPrice) {
-          const change = recentPrice.price - comparisonPrice;
-          const changePercent = (change / comparisonPrice) * 100;
+        comparisonPricesRef.current[instrument.symbol] = previous.close_price;
 
-          comparisonPricesRef.current[instrument.symbol] = comparisonPrice;
-
-          return {
-            ...instrument,
-            price: recentPrice.price,
-            change,
-            changePercent,
-            timestamp: recentPrice.timestamp,
-            comparisonPrice,
-            comparisonTimestamp: comparisonPrices.find(p => p.symbol === instrument.symbol)?.timestamp || 0,
-            recentTimestamp: recentPrice.timestamp,
-          };
-        }
         return {
           ...instrument,
+          price: current.close_price,
+          change,
+          changePercent,
+          timestamp: new Date(current.timestamp).getTime() / 1000,
+          comparisonPrice: previous.close_price,
+          comparisonTimestamp: new Date(previous.timestamp).getTime() / 1000,
+          recentTimestamp: new Date(current.timestamp).getTime() / 1000,
+        };
+      } catch (err) {
+        console.error(`Error fetching data for ${instrument.symbol}:`, err);
+        return {
+          ...instrument,
+          error: 'Failed to load data',
           comparisonPrice: 0,
           comparisonTimestamp: 0,
           recentTimestamp: 0,
         };
-      });
+      }
+    }));
 
-      setInstruments(updatedInstruments);
-    } catch (err) {
-      setError('Unable to load market data. Please check your connection and try again.');
-    } finally {
-      setIsLoading(false);
+    setInstruments(updatedInstruments);
+    setIsLoading(false);
+
+    // Set the first non-error instrument as selected
+    const firstValidInstrument = updatedInstruments.find(inst => !inst.error);
+    if (firstValidInstrument) {
+      setSelectedInstrument(firstValidInstrument);
     }
   }, [fetchPriceData]);
 
@@ -129,6 +125,7 @@ const TopInstruments: React.FC = () => {
                   change, 
                   changePercent,
                   recentTimestamp: parsedData.timestamp,
+                  error: undefined, // Clear any previous error
                 };
               }
               return instrument;
@@ -154,47 +151,19 @@ const TopInstruments: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!isLoading && !error) {
+    if (!isLoading) {
       const ws = connectWebSocket();
       return () => {
         ws.close();
       };
     }
-  }, [connectWebSocket, isLoading, error]);
-
-  useEffect(() => {
-    initializeData();
-  }, [initializeData]);
-
-  useEffect(() => {
-    if (!isLoading && instruments.length > 0 && !selectedInstrument) {
-      setSelectedInstrument(instruments[0]);
-    }
-  }, [isLoading, instruments, selectedInstrument]);
-
-  useEffect(() => {
-    if (!isLoading && !error) {
-      const ws = connectWebSocket();
-      return () => {
-        ws.close();
-      };
-    }
-  }, [connectWebSocket, isLoading, error]);
+  }, [connectWebSocket, isLoading]);
 
   const handleInstrumentClick = (instrument: ExtendedInstrument) => {
     setSelectedInstrument(instrument);
+    setChartError(null); // Reset chart error when selecting a new instrument
   };
 
-  if (isLoading) {
-    return <div className="flex justify-center items-center h-screen">
-      <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
-    </div>;
-  }
-
-  if (error) {
-    return <ErrorMessage message={error} />;
-  }
-  
   return (
     <div className="container mx-auto px-4">
       {wsError && (
@@ -213,6 +182,7 @@ const TopInstruments: React.FC = () => {
               recentTimestamp={instrument.recentTimestamp}
               onClick={() => handleInstrumentClick(instrument)}
               isSelected={selectedInstrument?.symbol === instrument.symbol}
+              error={instrument.error}
             />
           </div>
         ))}
@@ -223,7 +193,15 @@ const TopInstruments: React.FC = () => {
             <h2 className="text-3xl font-bold text-gray-800">{selectedInstrument.symbol} Chart</h2>
           </div>
           <div className="p-6">
-            <InstrumentChart symbol={selectedInstrument.symbol} assetType={selectedInstrument.type} />
+            {chartError ? (
+              <ErrorMessage message={chartError} />
+            ) : (
+              <InstrumentChart 
+                symbol={selectedInstrument.symbol} 
+                assetType={selectedInstrument.type}
+                onError={(error) => setChartError(error)}
+              />
+            )}
           </div>
         </div>
       )}

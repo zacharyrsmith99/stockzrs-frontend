@@ -25,6 +25,8 @@ interface ExtendedInstrument extends Instrument {
   error?: string;
 }
 
+const MemoizedInstrumentChart = React.memo(InstrumentChart);
+
 const TopInstruments: React.FC = () => {
   const [instruments, setInstruments] = useState<ExtendedInstrument[]>(
     initialInstruments.map(inst => ({ ...inst, comparisonPrice: 0, comparisonTimestamp: 0, recentTimestamp: 0 }))
@@ -32,7 +34,9 @@ const TopInstruments: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [chartError, setChartError] = useState<string | null>(null);
   const [wsError, setWsError] = useState<string | null>(null);
+  
   const comparisonPricesRef = useRef<{ [key: string]: number }>({});
+  const wsDataRef = useRef<{ [key: string]: FinancialData }>({});
   const [selectedInstrument, setSelectedInstrument] = useState<ExtendedInstrument | null>(null);
 
   const fetchPriceData = useCallback(async (instrument: Instrument) => {
@@ -40,7 +44,7 @@ const TopInstruments: React.FC = () => {
     if (!metricsServiceUrl) {
       throw new Error('Unable to retrieve market data. Please try again later.');
     }
-    const http = import.meta.env.VITE_ENVIRONMENT === 'local' ? 'http' : 'https'
+    const http = import.meta.env.VITE_ENVIRONMENT === 'local' ? 'http' : 'https';
 
     const url = new URL(`${http}://${metricsServiceUrl}/carousel/instrument_card_comparison`);
     url.searchParams.append('symbol', instrument.symbol);
@@ -89,7 +93,6 @@ const TopInstruments: React.FC = () => {
     setInstruments(updatedInstruments);
     setIsLoading(false);
 
-    // Set the first non-error instrument as selected
     const firstValidInstrument = updatedInstruments.find(inst => !inst.error);
     if (firstValidInstrument) {
       setSelectedInstrument(firstValidInstrument);
@@ -113,20 +116,27 @@ const TopInstruments: React.FC = () => {
       try {
         const parsedData: FinancialData = JSON.parse(event.data);
         if (parsedData) {
-          setInstruments(prevInstruments => 
+          wsDataRef.current[parsedData.symbol] = parsedData;
+
+          setInstruments(prevInstruments =>
             prevInstruments.map(instrument => {
               if (instrument.symbol === parsedData.symbol) {
                 const comparisonPrice = comparisonPricesRef.current[parsedData.symbol];
-                const change = parsedData.price - comparisonPrice;
-                const changePercent = (change / comparisonPrice) * 100;
-                return { 
-                  ...instrument,
-                  ...parsedData, 
-                  change, 
-                  changePercent,
-                  recentTimestamp: parsedData.timestamp,
-                  error: undefined, // Clear any previous error
-                };
+
+                // Only update state if there's an actual change in price
+                if (instrument.price !== parsedData.price) {
+                  const change = parsedData.price - comparisonPrice;
+                  const changePercent = (change / comparisonPrice) * 100;
+
+                  return {
+                    ...instrument,
+                    price: parsedData.price,
+                    change,
+                    changePercent,
+                    recentTimestamp: parsedData.timestamp,
+                    error: undefined,
+                  };
+                }
               }
               return instrument;
             })
@@ -160,8 +170,10 @@ const TopInstruments: React.FC = () => {
   }, [connectWebSocket, isLoading]);
 
   const handleInstrumentClick = (instrument: ExtendedInstrument) => {
-    setSelectedInstrument(instrument);
-    setChartError(null); // Reset chart error when selecting a new instrument
+    if (selectedInstrument?.symbol !== instrument.symbol) {
+      setSelectedInstrument(instrument);
+      setChartError(null); // Reset chart error when selecting a new instrument
+    }
   };
 
   return (
@@ -196,7 +208,7 @@ const TopInstruments: React.FC = () => {
             {chartError ? (
               <ErrorMessage message={chartError} />
             ) : (
-              <InstrumentChart 
+              <MemoizedInstrumentChart 
                 symbol={selectedInstrument.symbol} 
                 assetType={selectedInstrument.type}
                 onError={(error) => setChartError(error)}

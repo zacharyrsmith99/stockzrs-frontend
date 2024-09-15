@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import ReactApexChart from 'react-apexcharts';
+import { ApexOptions } from 'apexcharts';
 import { MetricsData } from '../types/instrumentTypes';
 import ErrorMessage from './ErrorMessage';
 import { DateTime } from 'luxon';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface InstrumentChartProps {
   symbol: string;
@@ -10,100 +12,216 @@ interface InstrumentChartProps {
   onError: (error: string) => void;
 }
 
-const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType }) => {
-  const [chartData, setChartData] = useState<MetricsData[]>([]);
+type IntervalType = '5min' | '15min' | '1hour' | '1day';
+type TimeRangeType = '1h' | '12h' | '24h' | '3d' | 'today' | '7d' | '30d';
+
+const intervalLabels: Record<IntervalType, string> = {
+  '5min': '5 Minutes',
+  '15min': '15 Minutes',
+  '1hour': '1 Hour',
+  '1day': '1 Day'
+};
+
+const timeRangeLabels: Record<TimeRangeType, string> = {
+  '1h': 'Last Hour',
+  '12h': 'Last 12 Hours',
+  '24h': 'Last 24 Hours',
+  '3d': 'Last 3 Days',
+  'today': 'Today',
+  '7d': 'Last 7 Days',
+  '30d': 'Last 30 Days'
+};
+
+const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, onError }) => {
+  const [chartData, setChartData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [interval, setInterval] = useState<IntervalType>('1hour');
+  const [timeRange, setTimeRange] = useState<TimeRangeType>('24h');
+
+  const getTimeRange = (range: TimeRangeType): { start: DateTime; end: DateTime } => {
+    const end = DateTime.now();
+    let start: DateTime;
+
+    switch (range) {
+      case '1h':
+        start = end.minus({ hours: 1 });
+        break;
+      case '12h':
+        start = end.minus({ hours: 12 });
+        break;
+      case '24h':
+        start = end.minus({ hours: 24 });
+        break;
+      case '3d':
+        start = end.minus({ days: 3 });
+        break;
+      case 'today':
+        start = end.startOf('day');
+        break;
+      case '7d':
+        start = end.minus({ days: 7 });
+        break;
+      case '30d':
+        start = end.minus({ days: 30 });
+        break;
+      default:
+        start = end.minus({ hours: 24 });
+    }
+
+    return { start, end };
+  };
+
+  const fetchChartData = async () => {
+    setIsLoading(true);
+    try {
+      const metricsServiceUrl = import.meta.env.VITE_METRICS_SERVICE_URL || "stockzrs-metrics-service.stockzrs.com";
+      if (!metricsServiceUrl) {
+        throw new Error('Metrics service URL is not configured');
+      }
+      const http = import.meta.env.VITE_ENVIRONMENT === 'local' ? 'http' : 'https';
+
+      const { start, end } = getTimeRange(timeRange);
+
+      let adjustedStart = start;
+      let adjustedEnd = end;
+
+      if (assetType.toLowerCase() === 'stock') {
+        adjustedStart = getLastBusinessDay(start);
+        adjustedEnd = getLastBusinessDay(end);
+        adjustedStart = adjustedStart.set({ hour: 9, minute: 30 });
+        adjustedEnd = adjustedEnd.set({ hour: 16, minute: 30 });
+      }
+
+      const url = new URL(`${http}://${metricsServiceUrl}/chart/price_data`);
+      url.searchParams.append('symbol', symbol);
+      url.searchParams.append('asset_type', assetType);
+      url.searchParams.append('interval', interval);
+      url.searchParams.append('start_time', adjustedStart.toISO()!);
+      url.searchParams.append('end_time', adjustedEnd.toISO()!);
+
+      const response = await fetch(url.toString());
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      if (!data.data || data.data.length === 0) {
+        throw new Error('No data available for the specified parameters');
+      }
+      const formattedData = data.data.map((item: MetricsData) => ({
+        x: new Date(item.timestamp).getTime(),
+        y: [item.open_price, item.high_price, item.low_price, item.close_price]
+      }));
+      setChartData(formattedData);
+    } catch (err) {
+      if (err instanceof Error) {
+        onError(`Failed to fetch chart data: ${err.message}`);
+      } else {
+        onError('An unexpected error occurred while fetching chart data');
+      }
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchChartData = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const metricsServiceUrl = import.meta.env.VITE_METRICS_SERVICE_URL || "stockzrs-metrics-service.stockzrs.com";
-        if (!metricsServiceUrl) {
-          throw new Error('Metrics service URL is not configured');
-        }
-        const http = import.meta.env.VITE_ENVIRONMENT === 'local' ? 'http' : 'https'
-        const response = await fetch(`${http}://${metricsServiceUrl}/chart/last_24_hours?symbol=${symbol}&asset_type=${assetType}`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        if (!data.data || data.data.length === 0) {
-          throw new Error('No data available for the specified symbol');
-        }
-        const localData = data.data.map((item: MetricsData) => ({
-          ...item,
-          timestamp: DateTime.fromISO(item.timestamp, { zone: 'utc' }).toLocal().toISO(),
-        }));
-        setChartData(localData);
-      } catch (err) {
-        if (err instanceof Error) {
-          setError(`Failed to fetch chart data: ${err.message}`);
-        } else {
-          setError('An unexpected error occurred while fetching chart data');
-        }
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchChartData();
-  }, [symbol, assetType]);
+  }, [symbol, assetType, interval, timeRange]);
 
-  const formatXAxis = (tickItem: string) => {
-    return DateTime.fromISO(tickItem).toLocaleString(DateTime.TIME_SIMPLE);
+  const getLastBusinessDay = (date: DateTime): DateTime => {
+    let businessDay = date;
+    while (businessDay.weekday > 5) {
+      businessDay = businessDay.minus({ days: 1 });
+    }
+    return businessDay;
   };
 
-  const formatTooltipLabel = (label: string) => {
-    return DateTime.fromISO(label).toLocaleString(DateTime.DATETIME_SHORT);
+  const options: ApexOptions = {
+    chart: {
+      type: 'candlestick',
+      height: 350,
+      background: '#424242',
+    },
+    title: {
+      text: `${symbol} Chart`,
+      align: 'left',
+      style: {
+        color: '#E0E0E0',
+      }
+    },
+    xaxis: {
+      type: 'datetime',
+      labels: {
+        style: {
+          colors: '#E0E0E0'
+        }
+      }
+    },
+    yaxis: {
+      tooltip: {
+        enabled: true
+      },
+      labels: {
+        style: {
+          colors: '#E0E0E0'
+        }
+      }
+    },
+    tooltip: {
+      theme: 'dark',
+    },
+    plotOptions: {
+      candlestick: {
+        colors: {
+          upward: '#26A69A',
+          downward: '#EF5350'
+        }
+      }
+    },
+    theme: {
+      mode: 'dark',
+    }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return <ErrorMessage message={error} />;
-  }
+  const series = [{
+    data: chartData
+  }];
 
   return (
-    <div className="bg-white">
-      <ResponsiveContainer width="100%" height={400}>
-        <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-          <XAxis 
-            dataKey="timestamp" 
-            tickFormatter={formatXAxis}
-            stroke="#666"
-          />
-          <YAxis 
-            domain={['auto', 'auto']} 
-            stroke="#666"
-          />
-          <Tooltip
-            labelFormatter={formatTooltipLabel}
-            formatter={(value: number) => [`$${value.toFixed(2)}`, 'Price']}
-            contentStyle={{ backgroundColor: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '4px' }}
-          />
-          <Legend />
-          <Line 
-            type="monotone" 
-            dataKey="close_price" 
-            stroke="#3B82F6" 
-            strokeWidth={2}
-            dot={false} 
-            activeDot={{ r: 8 }}
-            name="Close Price"
-          />
-        </LineChart>
-      </ResponsiveContainer>
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-4 items-center">
+        <Select value={interval} onValueChange={(value: IntervalType) => setInterval(value)}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Select interval" />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(intervalLabels).map(([value, label]) => (
+              <SelectItem key={value} value={value}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={timeRange} onValueChange={(value: TimeRangeType) => setTimeRange(value)}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Select time range" />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(timeRangeLabels).map(([value, label]) => (
+              <SelectItem key={value} value={value}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {isLoading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      ) : chartData.length > 0 ? (
+        <div className="bg-gray-800 p-4 rounded-lg">
+          <ReactApexChart options={options} series={series} type="candlestick" height={350} />
+        </div>
+      ) : (
+        <ErrorMessage message="No data available for the selected parameters" />
+      )}
     </div>
   );
 };

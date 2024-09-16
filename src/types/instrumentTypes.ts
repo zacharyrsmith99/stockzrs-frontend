@@ -12,6 +12,12 @@ export interface FinancialData {
 export interface Instrument extends FinancialData {
   change: number;
   changePercent: number;
+}
+
+export interface ExtendedInstrument extends Instrument {
+  comparisonPrice: number;
+  comparisonTimestamp: number;
+  recentTimestamp: number;
   error?: string;
 }
 

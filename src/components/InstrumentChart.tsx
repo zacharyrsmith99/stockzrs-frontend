@@ -23,11 +23,11 @@ const intervalLabels: Record<IntervalType, string> = {
 };
 
 const timeRangeLabels: Record<TimeRangeType, string> = {
+  'today': 'Today',
   '1h': 'Last Hour',
   '12h': 'Last 12 Hours',
   '24h': 'Last 24 Hours',
   '3d': 'Last 3 Days',
-  'today': 'Today',
   '7d': 'Last 7 Days',
   '30d': 'Last 30 Days'
 };
@@ -39,7 +39,7 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
   const [timeRange, setTimeRange] = useState<TimeRangeType>('24h');
 
   const getTimeRange = (range: TimeRangeType): { start: DateTime; end: DateTime } => {
-    const end = DateTime.now();
+    const end = DateTime.now().setZone('UTC');
     let start: DateTime;
 
     switch (range) {
@@ -71,6 +71,26 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
     return { start, end };
   };
 
+  const adjustForBusinessHours = (start: DateTime, end: DateTime): { start: DateTime; end: DateTime } => {
+    const nyZone = 'America/New_York';
+    let adjustedStart = start.setZone(nyZone);
+    let adjustedEnd = end.setZone(nyZone);
+
+    if (assetType.toLowerCase() !== 'cryptocurrency') {
+      adjustedStart = adjustedStart.set({ hour: 9, minute: 30 });
+      adjustedEnd = adjustedEnd.set({ hour: 16, minute: 0 });
+
+      while (adjustedStart.weekday > 5) {
+        adjustedStart = adjustedStart.minus({ days: 1 });
+      }
+      while (adjustedEnd.weekday > 5) {
+        adjustedEnd = adjustedEnd.minus({ days: 1 });
+      }
+    }
+
+    return { start: adjustedStart.toUTC(), end: adjustedEnd.toUTC() };
+  };
+
   const fetchChartData = async () => {
     setIsLoading(true);
     try {
@@ -80,24 +100,15 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
       }
       const http = import.meta.env.VITE_ENVIRONMENT === 'local' ? 'http' : 'https';
 
-      const { start, end } = getTimeRange(timeRange);
-
-      let adjustedStart = start;
-      let adjustedEnd = end;
-
-      if (assetType.toLowerCase() === 'stock') {
-        adjustedStart = getLastBusinessDay(start);
-        adjustedEnd = getLastBusinessDay(end);
-        adjustedStart = adjustedStart.set({ hour: 9, minute: 30 });
-        adjustedEnd = adjustedEnd.set({ hour: 16, minute: 30 });
-      }
+      let { start, end } = getTimeRange(timeRange);
+      ({ start, end } = adjustForBusinessHours(start, end));
 
       const url = new URL(`${http}://${metricsServiceUrl}/chart/price_data`);
       url.searchParams.append('symbol', symbol);
       url.searchParams.append('asset_type', assetType);
       url.searchParams.append('interval', interval);
-      url.searchParams.append('start_time', adjustedStart.toISO()!);
-      url.searchParams.append('end_time', adjustedEnd.toISO()!);
+      url.searchParams.append('start_time', start.toISO()!);
+      url.searchParams.append('end_time', end.toISO()!);
 
       const response = await fetch(url.toString());
       if (!response.ok) {
@@ -108,7 +119,7 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
         throw new Error('No data available for the specified parameters');
       }
       const formattedData = data.data.map((item: MetricsData) => ({
-        x: new Date(item.timestamp).getTime(),
+        x: DateTime.fromISO(item.timestamp).setZone('America/New_York').toJSDate(),
         y: [item.open_price, item.high_price, item.low_price, item.close_price]
       }));
       setChartData(formattedData);
@@ -128,14 +139,6 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
     fetchChartData();
   }, [symbol, assetType, interval, timeRange]);
 
-  const getLastBusinessDay = (date: DateTime): DateTime => {
-    let businessDay = date;
-    while (businessDay.weekday > 5) {
-      businessDay = businessDay.minus({ days: 1 });
-    }
-    return businessDay;
-  };
-
   const options: ApexOptions = {
     chart: {
       type: 'candlestick',
@@ -154,6 +157,12 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
       labels: {
         style: {
           colors: '#E0E0E0'
+        },
+        datetimeFormatter: {
+          year: 'yyyy',
+          month: "MMM 'yy",
+          day: 'dd MMM',
+          hour: 'HH:mm'
         }
       }
     },
@@ -164,11 +173,22 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
       labels: {
         style: {
           colors: '#E0E0E0'
-        }
+        },
+        formatter: (value) => `$${value.toFixed(2)}`
       }
     },
     tooltip: {
       theme: 'dark',
+      x: {
+        formatter: function(val) {
+          return DateTime.fromMillis(val).setZone('America/New_York').toFormat('yyyy-MM-dd HH:mm:ss ZZZZ');
+        }
+      },
+      y: {
+        formatter: function(val) {
+          return `$${val.toFixed(2)}`;
+        }
+      }
     },
     plotOptions: {
       candlestick: {

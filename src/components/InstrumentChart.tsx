@@ -5,6 +5,7 @@ import { MetricsData } from '../types/instrumentTypes';
 import ErrorMessage from './ErrorMessage';
 import { DateTime } from 'luxon';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatDollarAmount } from '../utils/formatter';
 
 interface InstrumentChartProps {
   symbol: string;
@@ -39,7 +40,7 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
   const [timeRange, setTimeRange] = useState<TimeRangeType>('24h');
 
   const getTimeRange = (range: TimeRangeType): { start: DateTime; end: DateTime } => {
-    const end = DateTime.now().setZone('UTC');
+    const end = DateTime.now()
     let start: DateTime;
 
     switch (range) {
@@ -72,23 +73,19 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
   };
 
   const adjustForBusinessHours = (start: DateTime, end: DateTime): { start: DateTime; end: DateTime } => {
-    const nyZone = 'America/New_York';
-    let adjustedStart = start.setZone(nyZone);
-    let adjustedEnd = end.setZone(nyZone);
-
     if (assetType.toLowerCase() !== 'cryptocurrency') {
-      adjustedStart = adjustedStart.set({ hour: 9, minute: 30 });
-      adjustedEnd = adjustedEnd.set({ hour: 16, minute: 0 });
+      start = start.set({ hour: 9, minute: 30 });
+      end = end.set({ hour: 16, minute: 0 });
 
-      while (adjustedStart.weekday > 5) {
-        adjustedStart = adjustedStart.minus({ days: 1 });
+      while (start.weekday > 5) {
+        start = start.minus({ days: 1 });
       }
-      while (adjustedEnd.weekday > 5) {
-        adjustedEnd = adjustedEnd.minus({ days: 1 });
+      while (end.weekday > 5) {
+        end = end.minus({ days: 1 });
       }
     }
 
-    return { start: adjustedStart.toUTC(), end: adjustedEnd.toUTC() };
+    return { start, end };
   };
 
   const fetchChartData = async () => {
@@ -111,21 +108,27 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
       url.searchParams.append('end_time', end.toISO()!);
 
       const response = await fetch(url.toString());
+      
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(`Failed to load chart data, please reconnect or try again later.`);
       }
       const data = await response.json();
+      
       if (!data.data || data.data.length === 0) {
         throw new Error('No data available for the specified parameters');
       }
+      
       const formattedData = data.data.map((item: MetricsData) => ({
-        x: DateTime.fromISO(item.timestamp).setZone('America/New_York').toJSDate(),
-        y: [item.open_price, item.high_price, item.low_price, item.close_price]
+        x: DateTime.fromISO(item.timestamp, {zone: 'UTC'}).setZone('America/New_York').toString(),
+        y: [(item.open_price), (item.high_price), (item.low_price), (item.close_price)]
       }));
+
+      console.log(formattedData)
+      
       setChartData(formattedData);
     } catch (err) {
       if (err instanceof Error) {
-        onError(`Failed to fetch chart data: ${err.message}`);
+        onError(`Failed to fetch chart data. Please reconnect or try again later.`);
       } else {
         onError('An unexpected error occurred while fetching chart data');
       }
@@ -158,6 +161,7 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
         style: {
           colors: '#E0E0E0'
         },
+        datetimeUTC: false,
         datetimeFormatter: {
           year: 'yyyy',
           month: "MMM 'yy",
@@ -174,19 +178,19 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
         style: {
           colors: '#E0E0E0'
         },
-        formatter: (value) => `$${value.toFixed(2)}`
+        formatter: (value) => formatDollarAmount(value)
       }
     },
     tooltip: {
       theme: 'dark',
       x: {
         formatter: function(val) {
-          return DateTime.fromMillis(val).setZone('America/New_York').toFormat('yyyy-MM-dd HH:mm:ss ZZZZ');
+          return DateTime.fromMillis(val).toFormat('yyyy-MM-dd HH:mm ZZZZ');
         }
       },
       y: {
         formatter: function(val) {
-          return `$${val.toFixed(2)}`;
+          return formatDollarAmount(val);
         }
       }
     },

@@ -6,6 +6,7 @@ interface SelectedInstrumentContextType {
   setSelectedInstrument: (instrument: ExtendedInstrument | null) => void;
   displayedInstrument: ExtendedInstrument | null;
   setDisplayedInstrument: (instrument: ExtendedInstrument | null) => void;
+  updateDisplayedInstrument: (updatedInstrument: ExtendedInstrument) => void;
 }
 
 const SelectedInstrumentContext = createContext<SelectedInstrumentContextType | undefined>(undefined);
@@ -14,19 +15,28 @@ export const SelectedInstrumentProvider: React.FC<{children: ReactNode}> = ({ ch
   const [selectedInstrument, setSelectedInstrument] = useState<ExtendedInstrument | null>(null);
   const [displayedInstrument, setDisplayedInstrument] = useState<ExtendedInstrument | null>(null);
 
+  const updateDisplayedInstrument = (updatedInstrument: ExtendedInstrument) => {
+    setDisplayedInstrument(prevInstrument => {
+      if (prevInstrument && prevInstrument.symbol === updatedInstrument.symbol) {
+        return { ...prevInstrument, ...updatedInstrument };
+      }
+      return prevInstrument;
+    });
+  };
+
   return (
     <SelectedInstrumentContext.Provider value={{ 
       selectedInstrument, 
       setSelectedInstrument, 
       displayedInstrument, 
-      setDisplayedInstrument 
+      setDisplayedInstrument,
+      updateDisplayedInstrument
     }}>
       {children}
     </SelectedInstrumentContext.Provider>
   );
 };
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const useSelectedInstrument = () => {
   const context = useContext(SelectedInstrumentContext);
   if (context === undefined) {

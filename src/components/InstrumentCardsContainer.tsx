@@ -3,6 +3,8 @@ import { Instrument, FinancialData, initialInstruments, ExtendedInstrument } fro
 import InstrumentCard from './InstrumentCard';
 import { useSelectedInstrument } from '../contexts/SelectedInstrumentContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useWebSocket } from '../contexts/WebSocketContext';
+import { useTimezone } from '../contexts/TimezoneContext';
 
 interface InstrumentCardPrice {
   current: PriceData;
@@ -18,7 +20,6 @@ interface PriceData {
   close_price: number;
 }
 
-const assetTypes = ['CRYPTOCURRENCY', 'CURRENCY', 'STOCK', 'ETF', 'MARKET_INDEX'];
 
 const placeholderInstruments: Record<string, Partial<ExtendedInstrument>[]> = {
   CRYPTOCURRENCY: [
@@ -56,7 +57,8 @@ const InstrumentCardsContainer: React.FC = () => {
   const comparisonPricesRef = useRef<{ [key: string]: number }>({});
   const wsDataRef = useRef<{ [key: string]: FinancialData }>({});
   const { selectedInstrument, setSelectedInstrument, setDisplayedInstrument } = useSelectedInstrument();
-  const wsRef = useRef<WebSocket | null>(null);
+  const { ws, isConnected } = useWebSocket();
+  const { timezone } = useTimezone();
   const isInitialMount = useRef(true);
 
   const fetchPriceData = useCallback(async (instrument: Instrument) => {
@@ -123,77 +125,59 @@ const InstrumentCardsContainer: React.FC = () => {
     initializeData();
   }, [initializeData, selectedAssetType]);
 
-  const connectWebSocket = useCallback(() => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      return;
-    }
+  useEffect(() => {
+    if (ws && isConnected) {
+      const handleMessage = (event: MessageEvent) => {
+        try {
+          const parsedData: FinancialData = JSON.parse(event.data);
+          if (parsedData) {
+            wsDataRef.current[parsedData.symbol] = parsedData;
 
-    const wsUrl = import.meta.env.VITE_STOCKZRS_RELAY_SERVICE_WS_URL || "wss://stockzrs-relay-service.stockzrs.com";
-    const ws = new WebSocket(wsUrl);
+            setInstruments(prevInstruments =>
+              prevInstruments.map(instrument => {
+                if (instrument.symbol === parsedData.symbol && 'price' in instrument) {
+                  const comparisonPrice = comparisonPricesRef.current[parsedData.symbol];
 
-    ws.onopen = () => {
-      console.log('Connected to WebSocket');
-      setWsError(null);
-    };
+                  if (instrument.price !== parsedData.price) {
+                    const change = parsedData.price - comparisonPrice;
+                    const changePercent = (change / comparisonPrice) * 100;
 
-    ws.onmessage = (event) => {
-      try {
-        const parsedData: FinancialData = JSON.parse(event.data);
-        if (parsedData) {
-          wsDataRef.current[parsedData.symbol] = parsedData;
-
-          setInstruments(prevInstruments =>
-            prevInstruments.map(instrument => {
-              if (instrument.symbol === parsedData.symbol && 'price' in instrument) {
-                const comparisonPrice = comparisonPricesRef.current[parsedData.symbol];
-
-                if (instrument.price !== parsedData.price) {
-                  const change = parsedData.price - comparisonPrice;
-                  const changePercent = (change / comparisonPrice) * 100;
-
-                  return {
-                    ...instrument,
-                    price: parsedData.price,
-                    change,
-                    changePercent,
-                    recentTimestamp: parsedData.timestamp,
-                    error: undefined,
-                  };
+                    return {
+                      ...instrument,
+                      price: parsedData.price,
+                      change,
+                      changePercent,
+                      recentTimestamp: parsedData.timestamp,
+                      error: undefined,
+                    };
+                  }
                 }
-              }
-              return instrument;
-            })
-          );
+                return instrument;
+              })
+            );
+          }
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
         }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
-      }
-    };
+      };
 
-    ws.onerror = () => {
-      setWsError('WebSocket connection error. Real-time updates may be unavailable.');
-    };
+      ws.addEventListener('message', handleMessage);
 
-    ws.onclose = () => {
-      console.log('WebSocket connection closed');
-      setWsError('WebSocket connection closed. Attempting to reconnect...');
-      setTimeout(connectWebSocket, 5000);
-    };
-
-    wsRef.current = ws;
-  }, []);
+      return () => {
+        ws.removeEventListener('message', handleMessage);
+      };
+    }
+  }, [ws, isConnected]);
 
   useEffect(() => {
-    connectWebSocket();
+    if (!isConnected) {
+      setWsError('WebSocket disconnected. Real-time updates may be unavailable.');
+    } else {
+      setWsError(null);
+    }
+  }, [isConnected]);
 
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-    };
-  }, [connectWebSocket]);
-
- const handleInstrumentClick = (instrument: ExtendedInstrument | Partial<ExtendedInstrument>) => {
+  const handleInstrumentClick = (instrument: ExtendedInstrument | Partial<ExtendedInstrument>) => {
     if ('price' in instrument) {
       setSelectedInstrument(instrument as ExtendedInstrument);
       setDisplayedInstrument(instrument as ExtendedInstrument);
@@ -204,43 +188,58 @@ const InstrumentCardsContainer: React.FC = () => {
     setSelectedAssetType(newAssetType);
   };
 
+  const assetTypes = ['CRYPTOCURRENCY', 'CURRENCY', 'STOCK', 'ETF', 'MARKET_INDEX'];
+
+  const toTitleCase = (str: string) => {
+    return str.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+  };
+
   return (
-    <div className="bg-white p-4 rounded-lg shadow">
-      <h2 className="text-lg font-bold mb-4 text-gray-800">Market Overview</h2>
-      {wsError && (
-        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-2 mb-4 rounded-r text-sm" role="alert">
-          <p className="font-bold">Warning</p>
-          <p>{wsError}</p>
-        </div>
-      )}
-      <div className="mb-4">
-        <Select value={selectedAssetType} onValueChange={handleAssetTypeChange}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select asset type" />
-          </SelectTrigger>
-          <SelectContent>
-            {assetTypes.map((type) => (
-              <SelectItem key={type} value={type}>
-                {type.replace('_', ' ')}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+      <div className="bg-gradient-to-r from-blue-500 to-blue-500 p-4 text-white">
+        <h2 className="text-2xl font-semibold">Market Overview</h2>
       </div>
-      <div className="space-y-4">
-        {instruments.map((instrument, index) => (
-          <InstrumentCard
-            key={instrument.symbol}
-            instrument={instrument}
-            comparisonPrice={'comparisonPrice' in instrument && typeof instrument.comparisonPrice === 'number' ? instrument.comparisonPrice : 0}
-            comparisonTimestamp={'comparisonTimestamp' in instrument && typeof instrument.comparisonTimestamp === 'number' ? instrument.comparisonTimestamp : 0}
-            recentTimestamp={'recentTimestamp' in instrument && typeof instrument.recentTimestamp === 'number' ? instrument.recentTimestamp : 0}
-            onClick={() => handleInstrumentClick(instrument)}
-            isSelected={selectedInstrument?.symbol === instrument.symbol}
-            error={'error' in instrument ? instrument.error : undefined}
-            isMainAsset={index === 0}
-          />
-        ))}
+      <div className="p-4">
+        {wsError && (
+          <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-2 mb-4 rounded-r text-sm" role="alert">
+            <p className="font-bold">Warning</p>
+            <p>{wsError}</p>
+          </div>
+        )}
+        <div className="mb-4">
+          <Select value={selectedAssetType} onValueChange={handleAssetTypeChange}>
+            <SelectTrigger className="w-full p-3 text-left bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg shadow-sm hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-300 ease-in-out">
+              <SelectValue placeholder="Select Asset Type" className="text-gray-700 font-medium" />
+            </SelectTrigger>
+            <SelectContent className="bg-white border border-blue-200 rounded-lg shadow-lg">
+              {assetTypes.map((type) => (
+                <SelectItem 
+                  key={type} 
+                  value={type} 
+                  className="p-3 hover:bg-blue-50 transition duration-200 ease-in-out cursor-pointer"
+                >
+                  {toTitleCase(type)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-4">
+          {instruments.map((instrument, index) => (
+            <InstrumentCard
+              key={instrument.symbol}
+              instrument={instrument}
+              comparisonPrice={'comparisonPrice' in instrument && typeof instrument.comparisonPrice === 'number' ? instrument.comparisonPrice : 0}
+              comparisonTimestamp={'comparisonTimestamp' in instrument && typeof instrument.comparisonTimestamp === 'number' ? instrument.comparisonTimestamp : 0}
+              recentTimestamp={'recentTimestamp' in instrument && typeof instrument.recentTimestamp === 'number' ? instrument.recentTimestamp : 0}
+              onClick={() => handleInstrumentClick(instrument)}
+              isSelected={selectedInstrument?.symbol === instrument.symbol}
+              error={'error' in instrument ? instrument.error : undefined}
+              isMainAsset={index === 0}
+              timezone={timezone}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -10,35 +10,17 @@ interface InstrumentChartProps {
   symbol: string;
   assetType: string;
   onError: (error: string) => void;
+  interval: string;
+  timeRange: string;
+  timezone: string;
 }
 
-type IntervalType = '5min' | '15min' | '1hour'
-type TimeRangeType = '1h' | '12h' | '24h' | '3d' | 'today' | '7d' | '30d';
-
-const intervalLabels: Record<IntervalType, string> = {
-  '5min': '5 Minutes',
-  '15min': '15 Minutes',
-  '1hour': '1 Hour',
-};
-
-const timeRangeLabels: Record<TimeRangeType, string> = {
-  'today': 'Today',
-  '1h': 'Last Hour',
-  '12h': 'Last 12 Hours',
-  '24h': 'Last 24 Hours',
-  '3d': 'Last 3 Days',
-  '7d': 'Last 7 Days',
-  '30d': 'Last 30 Days'
-};
-
-const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, onError }) => {
+const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, onError, interval, timeRange, timezone }) => {
   const [chartData, setChartData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [interval, setInterval] = useState<IntervalType>('1hour');
-  const [timeRange, setTimeRange] = useState<TimeRangeType>('24h');
 
-  const getTimeRange = (range: TimeRangeType): { start: DateTime; end: DateTime } => {
-    const end = DateTime.now()
+  const getTimeRange = (range: string): { start: DateTime; end: DateTime } => {
+    const end = DateTime.now().setZone(timezone);
     let start: DateTime;
 
     switch (range) {
@@ -53,9 +35,6 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
         break;
       case '3d':
         start = end.minus({ days: 3 });
-        break;
-      case 'today':
-        start = end.startOf('day');
         break;
       case '7d':
         start = end.minus({ days: 7 });
@@ -102,8 +81,8 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
       url.searchParams.append('symbol', symbol);
       url.searchParams.append('asset_type', assetType);
       url.searchParams.append('interval', interval);
-      url.searchParams.append('start_time', start.toISO()!);
-      url.searchParams.append('end_time', end.toISO()!);
+      url.searchParams.append('start_time', start.toUTC().toISO()!);
+      url.searchParams.append('end_time', end.toUTC().toISO()!);
 
       const response = await fetch(url.toString());
       
@@ -117,11 +96,9 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
       }
       
       const formattedData = data.data.map((item: MetricsData) => ({
-        x: DateTime.fromISO(item.timestamp, {zone: 'UTC'}).setZone('America/New_York').toString(),
-        y: [(item.open_price), (item.high_price), (item.low_price), (item.close_price)]
+        x: DateTime.fromISO(item.timestamp, { zone: 'UTC' }).setZone(timezone).toString(),
+        y: [item.open_price, item.high_price, item.low_price, item.close_price]
       }));
-
-      console.log(formattedData)
       
       setChartData(formattedData);
     } catch (err) {
@@ -138,25 +115,25 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
 
   useEffect(() => {
     fetchChartData();
-  }, [symbol, assetType, interval, timeRange]);
+  }, [symbol, assetType, interval, timeRange, timezone]);
 
   const options: ApexOptions = {
     chart: {
       type: 'candlestick',
-      background: '#424242',
+      background: '#ffffff',
     },
     title: {
       text: `${symbol} Chart`,
       align: 'left',
       style: {
-        color: '#E0E0E0',
+        color: '#333333',
       }
     },
     xaxis: {
       type: 'datetime',
       labels: {
         style: {
-          colors: '#E0E0E0'
+          colors: '#333333'
         },
         datetimeUTC: false,
         datetimeFormatter: {
@@ -173,16 +150,16 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
       },
       labels: {
         style: {
-          colors: '#E0E0E0'
+          colors: '#333333'
         },
         formatter: (value) => formatDollarAmount(value)
       }
     },
     tooltip: {
-      theme: 'dark',
+      theme: 'light',
       x: {
         formatter: function(val) {
-          return DateTime.fromMillis(val).toFormat('yyyy-MM-dd HH:mm ZZZZ');
+          return DateTime.fromMillis(val).setZone(timezone).toFormat('yyyy-MM-dd HH:mm ZZZZ');
         }
       },
       y: {
@@ -200,7 +177,7 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
       }
     },
     theme: {
-      mode: 'dark',
+      mode: 'light',
     }
   };
 
@@ -210,40 +187,12 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2 items-center mb-4">
-        <div className="font-bold mr-2">Interval:</div>
-        {Object.entries(intervalLabels).map(([value, label]) => (
-          <button
-            key={value}
-            onClick={() => setInterval(value as IntervalType)}
-            className={`px-3 py-1 rounded ${
-              interval === value ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-2 items-center mb-4">
-        <div className="font-bold mr-2">Time Range:</div>
-        {Object.entries(timeRangeLabels).map(([value, label]) => (
-          <button
-            key={value}
-            onClick={() => setTimeRange(value as TimeRangeType)}
-            className={`px-3 py-1 rounded ${
-              timeRange === value ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
       {isLoading ? (
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
         </div>
       ) : chartData.length > 0 ? (
-        <div className="bg-gray-800 p-4 rounded-lg">
+        <div className="bg-white p-4 rounded-lg">
           <ReactApexChart options={options} series={series} type="candlestick" height={500} />
         </div>
       ) : (

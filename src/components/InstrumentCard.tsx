@@ -1,36 +1,35 @@
 import React from 'react';
-import { ArrowUpCircle, ArrowDownCircle, CalendarDays, TrendingUp, DollarSign, AlertTriangle } from "lucide-react";
+import { ArrowUpCircle, ArrowDownCircle } from "lucide-react";
 import { Instrument } from '../types/instrumentTypes';
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 
 interface InstrumentCardProps {
-  instrument: Instrument;
+  instrument: Partial<Instrument>;
   comparisonPrice: number;
   comparisonTimestamp: number;
   recentTimestamp: number;
   onClick: () => void;
   isSelected: boolean;
   error?: string;
+  isMainAsset: boolean;
 }
 
 const InstrumentCard: React.FC<InstrumentCardProps> = ({
   instrument,
   comparisonPrice,
-  comparisonTimestamp,
   recentTimestamp,
   onClick,
   isSelected,
-  error
+  error,
+  isMainAsset
 }) => {
-  const getBackgroundGradient = (changePercent: number) => {
-    if (error) return 'bg-gradient-to-br from-gray-400 to-gray-500';
-    if (changePercent > 0) return 'bg-gradient-to-br from-green-400 to-blue-500';
-    if (changePercent < 0) return 'bg-gradient-to-br from-red-400 to-pink-500';
-    return 'bg-gradient-to-br from-gray-300 to-blue-300';
+  const getBackgroundColor = (changePercent: number | undefined) => {
+    if (error) return 'bg-gray-200';
+    if (!isMainAsset) return 'bg-gray-100';
+    if (changePercent === undefined) return 'bg-blue-100';
+    if (changePercent > 0) return 'bg-green-100';
+    if (changePercent < 0) return 'bg-red-100';
+    return 'bg-blue-100';
   };
 
   const formatDate = (timestamp: number) => {
@@ -40,32 +39,29 @@ const InstrumentCard: React.FC<InstrumentCardProps> = ({
   const renderCardContent = () => {
     if (error) {
       return (
-        <div className="flex flex-col items-center justify-center h-full">
-          <AlertTriangle size={40} className="text-white mb-2" />
-          <p className="text-white text-center">{error}</p>
-        </div>
+        <div className="text-sm text-gray-500">Error loading data</div>
       );
     }
 
     return (
       <>
         <div className="flex justify-between items-center">
-          <h3 className="text-xl font-bold text-white">{instrument.symbol}</h3>
-          <span className="text-xs font-semibold text-white bg-black bg-opacity-20 px-2 py-1 rounded-full">
-            {instrument.type}
-          </span>
+          <div>
+            <span className="font-semibold">{instrument.symbol}</span>
+            <div className="text-xs text-gray-500">{instrument.name}</div>
+          </div>
+          {instrument.price !== undefined && (
+            <span className="text-sm">${instrument.price.toFixed(2)}</span>
+          )}
         </div>
-        <div className="text-center">
-          <p className="text-3xl font-bold text-white mb-2">
-            ${instrument.price.toFixed(2)}
-          </p>
-          <div className={`flex items-center justify-center text-sm font-bold ${instrument.change >= 0 ? 'text-green-100' : 'text-red-100'}`}>
-            {instrument.change >= 0 ? <ArrowUpCircle size={20} className="mr-1" /> : <ArrowDownCircle size={20} className="mr-1" />}
-            <span className="text-shadow">
-              {instrument.change >= 0 ? '+' : ''}{instrument.change.toFixed(2)} ({instrument.changePercent.toFixed(2)}%)
+        {instrument.change !== undefined && instrument.changePercent !== undefined && (
+          <div className={`text-xs flex items-center justify-end ${instrument.change >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+            {instrument.change >= 0 ? <ArrowUpCircle size={12} className="mr-1" /> : <ArrowDownCircle size={12} className="mr-1" />}
+            <span>
+              {instrument.change.toFixed(2)} ({instrument.changePercent.toFixed(2)}%)
             </span>
           </div>
-        </div>
+        )}
       </>
     );
   };
@@ -74,54 +70,27 @@ const InstrumentCard: React.FC<InstrumentCardProps> = ({
     <HoverCard>
       <HoverCardTrigger asChild>
         <div 
-          className={`w-full h-40 rounded-lg shadow-lg overflow-hidden cursor-pointer transition-all duration-300 ease-in-out transform hover:scale-105 ${getBackgroundGradient(instrument.changePercent)} ${isSelected ? 'ring-4 ring-blue-500' : ''}`}
+          className={`p-2 rounded cursor-pointer transition-all duration-200 ${getBackgroundColor(instrument.changePercent)} ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
           onClick={onClick}
         >
-          <div className="p-4 h-full flex flex-col justify-between">
-            {renderCardContent()}
-          </div>
+          {renderCardContent()}
         </div>
       </HoverCardTrigger>
-      <HoverCardContent className="w-80 p-0 bg-white rounded-lg shadow-xl">
-        <div className="p-5 bg-gray-100 rounded-t-lg">
-          <h4 className="text-xl font-semibold text-gray-800 mb-2">{instrument.symbol} Details</h4>
-          <p className="text-sm text-gray-600">
-            {instrument.type}
-          </p>
-        </div>
-        <div className="p-5 space-y-4">
-          {error ? (
-            <div className="flex items-center text-red-500">
-              <AlertTriangle className="w-6 h-6 mr-3" />
-              <p>{error}</p>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center">
-                <DollarSign className="w-6 h-6 text-blue-500 mr-3" />
-                <div>
-                  <p className="text-sm font-medium text-gray-700">Comparison Price</p>
-                  <p className="text-xl font-semibold text-gray-900">${comparisonPrice.toFixed(2)}</p>
-                </div>
-              </div>
-              <div className="flex items-center">
-                <TrendingUp className="w-6 h-6 text-green-500 mr-3" />
-                <div>
-                  <p className="text-sm font-medium text-gray-700">Recent Price</p>
-                  <p className="text-xl font-semibold text-gray-900">${instrument.price.toFixed(2)}</p>
-                </div>
-              </div>
-              <div className="flex items-center text-sm text-gray-600">
-                <CalendarDays className="w-5 h-5 mr-3 opacity-70" />
-                <span>Comparison: {formatDate(comparisonTimestamp)}</span>
-              </div>
-              <div className="flex items-center text-sm text-gray-600">
-                <CalendarDays className="w-5 h-5 mr-3 opacity-70" />
-                <span>Recent: {formatDate(recentTimestamp)}</span>
-              </div>
-            </>
-          )}
-        </div>
+      <HoverCardContent className="w-64 p-4 bg-white rounded-lg shadow-xl">
+        <h4 className="text-lg font-semibold mb-2">{instrument.name}</h4>
+        <p className="text-sm text-gray-600 mb-2">{instrument.symbol} - {instrument.type}</p>
+        {error ? (
+          <p className="text-sm text-red-500">{error}</p>
+        ) : isMainAsset ? (
+          <>
+            <p className="text-sm"><strong>Current Price:</strong> ${instrument.price?.toFixed(2)}</p>
+            <p className="text-sm"><strong>Change:</strong> {instrument.change?.toFixed(2)} ({instrument.changePercent?.toFixed(2)}%)</p>
+            <p className="text-sm"><strong>Previous Close:</strong> ${comparisonPrice.toFixed(2)}</p>
+            <p className="text-sm"><strong>Last Updated:</strong> {formatDate(recentTimestamp)}</p>
+          </>
+        ) : (
+          <p className="text-sm">Placeholder instrument</p>
+        )}
       </HoverCardContent>
     </HoverCard>
   );

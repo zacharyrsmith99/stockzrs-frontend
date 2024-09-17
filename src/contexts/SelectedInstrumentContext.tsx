@@ -4,15 +4,23 @@ import { ExtendedInstrument } from '../types/instrumentTypes';
 interface SelectedInstrumentContextType {
   selectedInstrument: ExtendedInstrument | null;
   setSelectedInstrument: (instrument: ExtendedInstrument | null) => void;
+  displayedInstrument: ExtendedInstrument | null;
+  setDisplayedInstrument: (instrument: ExtendedInstrument | null) => void;
 }
 
 const SelectedInstrumentContext = createContext<SelectedInstrumentContextType | undefined>(undefined);
 
 export const SelectedInstrumentProvider: React.FC<{children: ReactNode}> = ({ children }) => {
   const [selectedInstrument, setSelectedInstrument] = useState<ExtendedInstrument | null>(null);
+  const [displayedInstrument, setDisplayedInstrument] = useState<ExtendedInstrument | null>(null);
 
   return (
-    <SelectedInstrumentContext.Provider value={{ selectedInstrument, setSelectedInstrument }}>
+    <SelectedInstrumentContext.Provider value={{ 
+      selectedInstrument, 
+      setSelectedInstrument, 
+      displayedInstrument, 
+      setDisplayedInstrument 
+    }}>
       {children}
     </SelectedInstrumentContext.Provider>
   );

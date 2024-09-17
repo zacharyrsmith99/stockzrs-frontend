@@ -4,7 +4,6 @@ import { ApexOptions } from 'apexcharts';
 import { MetricsData } from '../types/instrumentTypes';
 import ErrorMessage from './ErrorMessage';
 import { DateTime } from 'luxon';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDollarAmount } from '../utils/formatter';
 
 interface InstrumentChartProps {
@@ -13,14 +12,13 @@ interface InstrumentChartProps {
   onError: (error: string) => void;
 }
 
-type IntervalType = '5min' | '15min' | '1hour' | '1day';
+type IntervalType = '5min' | '15min' | '1hour'
 type TimeRangeType = '1h' | '12h' | '24h' | '3d' | 'today' | '7d' | '30d';
 
 const intervalLabels: Record<IntervalType, string> = {
   '5min': '5 Minutes',
   '15min': '15 Minutes',
   '1hour': '1 Hour',
-  '1day': '1 Day'
 };
 
 const timeRangeLabels: Record<TimeRangeType, string> = {
@@ -145,7 +143,6 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
   const options: ApexOptions = {
     chart: {
       type: 'candlestick',
-      height: 350,
       background: '#424242',
     },
     title: {
@@ -213,27 +210,33 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-4 items-center">
-        <Select value={interval} onValueChange={(value: IntervalType) => setInterval(value)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Select interval" />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(intervalLabels).map(([value, label]) => (
-              <SelectItem key={value} value={value}>{label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={timeRange} onValueChange={(value: TimeRangeType) => setTimeRange(value)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Select time range" />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(timeRangeLabels).map(([value, label]) => (
-              <SelectItem key={value} value={value}>{label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-wrap gap-2 items-center mb-4">
+        <div className="font-bold mr-2">Interval:</div>
+        {Object.entries(intervalLabels).map(([value, label]) => (
+          <button
+            key={value}
+            onClick={() => setInterval(value as IntervalType)}
+            className={`px-3 py-1 rounded ${
+              interval === value ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-2 items-center mb-4">
+        <div className="font-bold mr-2">Time Range:</div>
+        {Object.entries(timeRangeLabels).map(([value, label]) => (
+          <button
+            key={value}
+            onClick={() => setTimeRange(value as TimeRangeType)}
+            className={`px-3 py-1 rounded ${
+              timeRange === value ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
       {isLoading ? (
         <div className="flex justify-center items-center h-64">
@@ -241,7 +244,7 @@ const InstrumentChart: React.FC<InstrumentChartProps> = ({ symbol, assetType, on
         </div>
       ) : chartData.length > 0 ? (
         <div className="bg-gray-800 p-4 rounded-lg">
-          <ReactApexChart options={options} series={series} type="candlestick" height={350} />
+          <ReactApexChart options={options} series={series} type="candlestick" height={500} />
         </div>
       ) : (
         <ErrorMessage message="No data available for the selected parameters" />
